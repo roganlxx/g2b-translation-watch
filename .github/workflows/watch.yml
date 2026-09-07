@@ -1,0 +1,38 @@
+name: g2b-translation-watch
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # 15분마다 (UTC). KST 무관하게 24시간 감시
+  workflow_dispatch:          # 수동 실행 버튼
+
+concurrency:
+  group: watch
+  cancel-in-progress: false
+
+permissions:
+  contents: write             # seen.json 커밋용
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: 감시 실행
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_TO: ${{ secrets.ALERT_TO }}
+        run: node watch.mjs
+      - name: 상태 커밋
+        run: |
+          git config user.name "g2b-watch-bot"
+          git config user.email "bot@users.noreply.github.com"
+          if [ -n "$(git status --porcelain seen.json hits.log)" ]; then
+            git add seen.json hits.log
+            git commit -m "state: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push
+          else
+            echo "변경 없음"
+          fi
